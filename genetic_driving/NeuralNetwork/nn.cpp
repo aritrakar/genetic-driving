@@ -81,6 +81,7 @@ void NN::train(std::vector<std::vector<float>>training_data, float l_rate, size_
 			expected[static_cast<int>(row.back())] = 1.0;
 			for (size_t x = 0; x < n_outputs; x++)
 			{
+				// Squared error
 				sum_error += static_cast<float>(std::pow((expected[x] - outputs[x]), 2));
 			}
 			this->backward_propagate_error(expected);

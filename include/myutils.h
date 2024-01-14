@@ -6,7 +6,15 @@
 #include <iostream>
 
 #ifndef M_PI
-#define M_PI 3.14159265358979323846
+#define M_PI 3.141592 // 65358979323846
+#endif
+
+#ifndef MAX_PIXEL_X
+#define MAX_PIXEL_X 1920 // 1920.0f
+#endif
+
+#ifndef MAX_PIXEL_Y
+#define MAX_PIXEL_Y 1080 // 1080.0f
 #endif
 
 inline float dist(float x1, float y1, float x2, float y2) {

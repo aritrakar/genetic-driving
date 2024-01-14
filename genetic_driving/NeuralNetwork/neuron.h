@@ -17,7 +17,8 @@ public:
 
 		for (size_t i = 0; i < m_nWeights + 1; ++i) {
  			// m_weights.emplace_back(dist(gen));
-			m_weights.emplace_back(0);
+			// m_weights.emplace_back(0);
+			m_weights.emplace_back((rand() % 1000 - 500) / 200);
 		}
 	}
 
@@ -31,7 +32,8 @@ public:
 		}
 
 		// Transfer. Sigmoid activation function.
-		m_output = 1.0f / (1.0f + exp(-m_activation));
+		// m_output = 1.0f / (1.0f + exp(-m_activation));
+		m_output = std::tanh(m_activation);
 	};
 
 	float transfer_derivative() { return static_cast<float>(m_output * (1.0 - m_output)); };

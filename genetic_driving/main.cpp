@@ -5,7 +5,7 @@
 #include <iostream>
 #include <thread>
 
-void saveBestCar(std::vector<Car>& cars, Car& BestCar) {
+void savebestCar(std::vector<Car>& cars, Car& bestCar) {
 	float maxScore = 0; float indexMax = 0;
 
 	for (int i = 0; i < cars.size(); i++) {
@@ -15,8 +15,8 @@ void saveBestCar(std::vector<Car>& cars, Car& BestCar) {
 		}
 	}
 
-	BestCar.nn = cars[indexMax].nn;
-	BestCar.score = cars[indexMax].score;
+	bestCar.nn = cars[indexMax].nn;
+	bestCar.score = cars[indexMax].score;
 }
 
 void evolveNN(NN& neuralNet, float percent) {
@@ -30,7 +30,8 @@ void evolveNN(NN& neuralNet, float percent) {
 			std::vector<float>& weights = neuron.get_weights();
 			for (float& weight : weights) {
 				if (chanceDist(gen) < percent) {
-					weight = weightDist(gen); // Randomly mutate the weight
+					// weight = weightDist(gen); // Randomly mutate the weight (and bias)
+					weight = (rand() % 1000 - 500) / 200;
 				}
 			}
 		}
@@ -38,15 +39,15 @@ void evolveNN(NN& neuralNet, float percent) {
 }
 
 
-void updateCars(std::vector<Car>& cars, sf::Image mapImg, std::vector<Checkpoint>& checkpoints, std::vector<Car>& BestCars, bool& end) {
+void updateCars(std::vector<Car>& cars, sf::Image mapImg, std::vector<Checkpoint>& checkpoints, std::vector<Car>& bestCars, bool& end) {
 	bool alldead = true;
 	for (int i = 0; i < cars.size(); i++) {
-		cars[i].update(mapImg, checkpoints, BestCars);
+		cars[i].update(mapImg, checkpoints, bestCars);
 		alldead = alldead && cars[i].dead;
 	}
 
 	if (alldead) {
-		saveBestCar(cars, BestCars[0]);
+		savebestCar(cars, bestCars[0]);
 		end = true;
 	}
 }
@@ -94,8 +95,9 @@ void initCheckpoints(std::vector<Checkpoint>& checkpoints, int num) {
 		checkpoints.emplace_back(sf::Vector2f(385, 787), sf::Vector2f(180, 15), -0.1, 4);
 		checkpoints.emplace_back(sf::Vector2f(849, 965), sf::Vector2f(130, 15), M_PI / 2, 5);
 	}
-}
 
+	std::cout << "Initialized checkpoints." << std::endl;
+}
 
 void initStartPos(Car& c, int lvl) {
 	if (lvl == 1 || lvl == 2) {
@@ -128,79 +130,75 @@ void write(sf::RenderWindow& window, std::string t1, sf::Vector3f v, sf::Color c
 int main()
 {
 	const int FONT_SIZE = 30;
-	const int WAITTIME = 0; //in ms, between each frame
-	const int NBOFCARS = 500;
-	const int NBSAVEDCARS = 15;
-	const float EVOLUTION = 20; // Average percent change of each generation
+	const int WAIT_TIME = 0; // in ms, between each frame
+	const int N_CARS = 1500;
+	const int N_SAVED_CARS = 10;
+	const float EVOLUTION = 7; // Average percent change of each generation
 	const bool CHANGEMAP = false;
 	const float FRICTION = 0.9;
-	const float CARSPEED = 1;
-	const bool SHOWCHECKPOINTS = false;
+	const float CAR_SPEED = 1;
+	const bool SHOW_CHECKPOINTS = false;
 
 	int mapn = 1;
 
 	std::srand(std::time(nullptr));
 
-	int windowWidth = 1920;
-	int windowHeight = 1080;
+	int windowWidth = MAX_PIXEL_X;
+	int windowHeight = MAX_PIXEL_Y;
 
-	sf::RenderWindow window(sf::VideoMode(windowWidth, windowHeight), "Name", sf::Style::Fullscreen);
+	sf::RenderWindow window(sf::VideoMode(windowWidth, windowHeight), "DrivingSimulation", sf::Style::Fullscreen);
 	sf::Texture mapTxt;
 	if (!mapTxt.loadFromFile("../images/map" + std::to_string(mapn) + "Texture.png")) {
-		std::cout << "TEXTURE NOT FOUND" << std::endl;
+		std::cerr << "Error: Map texture not found." << std::endl;
 		return -1;
 	}
 
 	sf::Image mapImg;
 	if (!mapImg.loadFromFile("../images/map" + std::to_string(mapn) + ".png")) {
-		std::cout << "MAP NOT FOUND" << std::endl;
+		std::cerr << "Error: Map image not found." << std::endl;
 		return -1;
 	}
 
 	sf::RectangleShape Map;
 	Map.setTexture(&mapTxt);
-	Map.setSize(sf::Vector2f(1920, 1080));
-	Map.setPosition(sf::Vector2f(0, 0));
-
-	std::cout << "Drawing map." << std::endl;
+	Map.setSize(sf::Vector2f(windowWidth, windowHeight));
+	Map.setPosition(sf::Vector2f(0, 0)); // Top left corner
 	window.draw(Map);
 
 	sf::RectangleShape whiteRect;
 	whiteRect.setFillColor(sf::Color(255, 255, 255, 150));
-	whiteRect.setPosition(sf::Vector2f(0, 0));
 	whiteRect.setSize(sf::Vector2f(240, 175));
+	whiteRect.setPosition(sf::Vector2f(0, 0)); // Top left corner
 
+	Car bestCar;
+	bestCar.init(sf::Vector2f(0, 0), sf::Vector2f(1, 0.01));
+	bestCar.friction = FRICTION;
+	initStartPos(bestCar, mapn);
+
+	// Initialize the cars
 	std::vector<Car> cars;
-	Car BestCar;
-	BestCar.init(sf::Vector2f(0, 0), sf::Vector2f(1, 0.01));
-	BestCar.friction = FRICTION;
-	initStartPos(BestCar, mapn);
-
-	std::cout << "Initialized best car." << std::endl;
-
-	for (int i = 0; i < NBOFCARS; i++) {
+	cars.reserve(N_CARS); // Reserve space for N_CARS elements
+	for (int i = 0; i < N_CARS; i++) {
 		Car c;
-		c.init(BestCar.position, BestCar.orientation);
+		c.init(bestCar.position, bestCar.orientation);
 		c.friction = FRICTION;
-		c.speedFactor = CARSPEED;
+		c.speedFactor = CAR_SPEED;
 		cars.emplace_back(c);
 	}
 
-	std::cout << "Finished initializing cars." << std::endl;
+	std::cout << "Initialized cars." << std::endl;
 
-	// 10 best cars
-	std::vector <Car> BestCarsVect;
-	for (int i = 0; i < NBSAVEDCARS; i++) {
-		BestCarsVect.emplace_back(BestCar);
-	}
+	// Vector to store the best cars which'll be the next generation's parents
+	std::vector<Car> bestCarsVector(N_SAVED_CARS, bestCar);
 
+	// Initialize checkpoints
 	std::vector<Checkpoint> checkpoints;
 	initCheckpoints(checkpoints, mapn);
 
-	std::cout << "Initialized checkpoints." << std::endl;
-
 	int generation = 0;
 	bool endOfGeneration = false;
+
+	// Sleeping in small increments allows checking for user input
 	for (int i = 0; i < 10; i++) { // was 100
 		sf::sleep(sf::seconds(0.1));
 	}
@@ -210,40 +208,43 @@ int main()
 	// Main loop
 	while (window.isOpen()) {
 		if (endOfGeneration) {
-			std::cout << "Generation " << generation << ". Best score: " << BestCarsVect[0].score << std::endl;
+			std::cout << "Generation " << generation << ". Best score: " << bestCarsVector[0].score << std::endl;
 			generation++;
 			if (CHANGEMAP) {
 				mapn = generation % 3 + 1;
-				std::string address = "../images/map";
-				address += std::to_string(mapn);
-
-				if (!mapTxt.loadFromFile(address + "Texture.png")) return -1;
-				if (!mapImg.loadFromFile(address + ".png")) return -1;
+				std::string mapBasePath = "../images/map" + std::to_string(mapn);
+				if (!mapTxt.loadFromFile(mapBasePath + "Texture.png") || !mapImg.loadFromFile(mapBasePath + ".png"))
+					return -1;
 				initCheckpoints(checkpoints, mapn);
 
 				Map.setTexture(&mapTxt);
 			}
 
-			initStartPos(BestCar, mapn);
-			int childOf = 0;
-			for (int i = 0; i < NBOFCARS; i++) {
-				childOf = floor((float)(i) / NBOFCARS * NBSAVEDCARS);
+			initStartPos(bestCar, mapn);
+
+			// General the next generation via evolution
+			int parentIndex = 0;
+			for (int i = 0; i < N_CARS; i++) {
 				cars[i].init(sf::Vector2f(400, 500), sf::Vector2f(0, -1));
 				initStartPos(cars[i], mapn);
-				cars[i].nn = BestCarsVect[childOf].nn;
-				cars[i].speedFactor = CARSPEED;
+
+				// parentIndex = floor((float)(i) / N_CARS * N_SAVED_CARS);
+				parentIndex = floor((float)(i) / N_CARS * N_SAVED_CARS);
+				cars[i].nn = bestCarsVector[parentIndex].nn;
+				cars[i].speedFactor = CAR_SPEED;
 				evolveNN(cars[i].nn, EVOLUTION);
 			}
 
-			BestCar.score = BestCarsVect[0].score;
-			for (int i = 0; i < NBSAVEDCARS; i++) {
-				BestCarsVect[i].score = 0;
+			// Update the best score so far
+			bestCar.score = bestCarsVector[0].score;
+			for (int i = 0; i < N_SAVED_CARS; i++) {
+				bestCarsVector[i].score = 0;
 			}
 
 			endOfGeneration = false;
 		}
 
-		std::thread tup(updateCars, std::ref(cars), mapImg, std::ref(checkpoints), std::ref(BestCarsVect), std::ref(endOfGeneration));
+		std::thread tup(updateCars, std::ref(cars), mapImg, std::ref(checkpoints), std::ref(bestCarsVector), std::ref(endOfGeneration));
 		sf::Event event;
 		while (window.pollEvent(event)) {
 			if (event.type == sf::Event::Closed) {
@@ -257,23 +258,23 @@ int main()
 		drawCars(cars, window);
 		window.draw(whiteRect);
 
-		if (SHOWCHECKPOINTS) drawCheckpoints(checkpoints, window);
+		if (SHOW_CHECKPOINTS) drawCheckpoints(checkpoints, window);
 		
 		write(window, "Generation #" + std::to_string(generation), sf::Vector3f(10, 10, FONT_SIZE), sf::Color::Black);
-		write(window, "Best: " + std::to_string((int)(BestCarsVect[0].score * M_PI)), sf::Vector3f(10, 50, FONT_SIZE), sf::Color::Black);
+		write(window, "Best: " + std::to_string((int)(bestCarsVector[0].score * M_PI)), sf::Vector3f(10, 50, FONT_SIZE), sf::Color::Black);
 
 		if (!CHANGEMAP) {
-			write(window, "Prev. best: " + std::to_string((int)(BestCar.score * M_PI)), sf::Vector3f(10, 90, FONT_SIZE), sf::Color::Black); //don't display the true score because it's not precise enough when rounded
-			write(window, "Friction: " + std::to_string((int)(100 * (1 - BestCar.friction))) + "%", sf::Vector3f(10, 130, FONT_SIZE), sf::Color::Black);
+			write(window, "Prev. best: " + std::to_string((int)(bestCar.score * M_PI)), sf::Vector3f(10, 90, FONT_SIZE), sf::Color::Black); //don't display the true score because it's not precise enough when rounded
+			write(window, "Friction: " + std::to_string((int)(100 * (1 - bestCar.friction))) + "%", sf::Vector3f(10, 130, FONT_SIZE), sf::Color::Black);
 		}
 		else {
-			write(window, "Friction: " + std::to_string((int)(100 * (1 - BestCar.friction))) + "%", sf::Vector3f(10, 90, FONT_SIZE), sf::Color::Black);
+			write(window, "Friction: " + std::to_string((int)(100 * (1 - bestCar.friction))) + "%", sf::Vector3f(10, 90, FONT_SIZE), sf::Color::Black);
 		}
 
 		tup.join();
 		window.display();
 
-		// sf::sleep(sf::milliseconds(WAITTIME));
+		// sf::sleep(sf::milliseconds(WAIT_TIME));
 	}
 
     return 0;

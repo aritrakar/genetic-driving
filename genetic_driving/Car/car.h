@@ -5,7 +5,6 @@
 #include <vector>
 #include "../NeuralNetwork/nn.h"
 #include "../NeuralNetwork/checkpoint.h"
-//#include <myutils.h>
 
 class Car {
 public:
@@ -49,8 +48,8 @@ public:
     sf::Vector2f size;
     sf::RectangleShape rect;
 
-    const float minspeed = 0.4f;
-    float speedFactor; // Speed factor for the NN: maxspeed = minspeed + nn * speedFactor
+    const float minSpeed = 0.4f;
+    float speedFactor; // Speed factor for the NN: maxspeed = minSpeed + nn * speedFactor
     float friction = 0.9f;
     const float maxlife = 70.0f / (friction * friction);
     const float viewDist = 300.0f;
